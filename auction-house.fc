@@ -1,0 +1,44 @@
+#include "imports/stdlib.fc";
+
+const MY_WORKCHAIN = BASECHAIN;
+const op::bid = "bid"c; ;; 13f2c12a
+const op::close = "close"c; ;; 82ab9120
+
+int highest_bid;
+int closed;
+
+() place_bid(int amount) impure inline {
+    throw_unless(1006, closed == 0);
+    if (amount > highest_bid) {
+        highest_bid = amount;
+    }
+}
+
+() close_auction() impure inline {
+    closed = 1;
+}
+
+() route_internal(slice ctx::sender, int ctx::value, int ctx::fwd_fee, slice ctx::body) impure inline {
+    (int op, int query_id) = ctx::body~load_op_and_query_id();
+
+    if op == op::bid {
+        place_bid(50);
+        return ();
+    }
+
+    if op == op::close {
+        close_auction();
+        return ();
+    }
+
+    throw(0xffff);
+}
+
+() main(int ctx::value, cell in_msg_full, slice ctx::body) impure {
+    slice s = in_msg_full.begin_parse();
+    int flags = s~load_msg_flags();
+    if (is_bounced(flags)) { return (); }
+
+    (slice ctx::sender, int ctx::fwd_fee) = s~retrieve_ctx(MY_WORKCHAIN);
+    route_internal(ctx::sender, ctx::value, ctx::fwd_fee, ctx::body);
+}
